@@ -17,7 +17,7 @@ jobs:
 
       - name: Generate Xcode project
         working-directory: apps/RayNeoCompanion
-        run: xcodegen generate
+        run: xcodegen generate --spec project-device.yml
 
       - name: Show Xcode version
         run: xcodebuild -version
