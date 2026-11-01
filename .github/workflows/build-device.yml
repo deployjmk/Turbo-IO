@@ -1,0 +1,53 @@
+name: Build RayNeoCompanionDevice (unsigned)
+
+on:
+  push:
+    branches: [main, live-coach-v01]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: apps/RayNeoCompanion
+        run: xcodegen generate
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build RayNeoCompanionDevice (unsigned, iPhone device)
+        working-directory: apps/RayNeoCompanion
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project RayNeoCompanion.xcodeproj \
+            -scheme RayNeoCompanionDevice \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/RayNeoCompanionDevice.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            archive | tee build/log.txt | xcbeautify || tail -80 build/log.txt
+
+      - name: Package unsigned IPA
+        working-directory: apps/RayNeoCompanion/build
+        run: |
+          mkdir -p Payload
+          cp -R RayNeoCompanionDevice.xcarchive/Products/Applications/*.app Payload/
+          zip -qry RayNeoCompanionDevice-unsigned.ipa Payload
+          ls -lh RayNeoCompanionDevice-unsigned.ipa
+
+      - name: Upload unsigned artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RayNeoCompanionDevice-unsigned-${{ github.sha }}
+          path: apps/RayNeoCompanion/build/RayNeoCompanionDevice-unsigned.ipa
+          if-no-files-found: error
