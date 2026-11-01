@@ -12,7 +12,7 @@ struct HermesUplinkView: View {
         Form {
             Section("Homelab Uplink") {
                 LabeledContent("State") {
-                    Text(store.uplink.stateLabel).font(.footnote).foregroundStyle(secondary)
+                    Text(store.uplink.state.stateLabel).font(.footnote).foregroundStyle(secondary)
                 }
                 LabeledContent("Endpoint") { Text(store.uplink.endpoint.isEmpty ? "not set" : store.uplink.endpoint).font(.footnote) }
                 LabeledContent("Token") { Text(store.uplink.tokenConfigured ? "saved in Keychain" : "not set").font(.footnote) }
