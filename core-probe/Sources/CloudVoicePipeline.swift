@@ -33,7 +33,7 @@ final class CloudVoicePipeline {
         precondition(Thread.isMainThread)
         cancel()
         self.id = id
-        guard let key = CloudVoiceKeys.get(CloudVoiceKeys.asrService), CloudVoiceKeys.get(CloudVoiceKeys.llmService) != nil else { fail(id,"缺少Keychain凭证"); return }
+        guard let key = CloudVoiceKeys.get(CloudVoiceKeys.asrService), CloudVoiceKeys.get(CloudVoiceKeys.llmService) != nil else { fail(id,"Missing Keychain credentials"); return }
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 12
         config.timeoutIntervalForResource = continuousASR ? 135 : 35
@@ -54,7 +54,7 @@ final class CloudVoicePipeline {
             do {
                 try await ws.send(.dataJSON(command))
                 guard self.id == id else { return }
-                self.log?("云ASR run-task已发；PCM16/16k/mono；服务默认VAD")
+                self.log?("Cloud ASR run-task sent; PCM16/16k/mono; service-default VAD")
                 var events = 0
                 while !Task.isCancelled, self.id == id {
                     let message = try await ws.receive()
@@ -66,7 +66,7 @@ final class CloudVoicePipeline {
                     events += 1; guard events <= (self.continuousASR ? 10000 : 2000) else { throw CloudError.limit }
                     switch header["event"] as? String {
                     case "task-started":
-                        self.ready = true; self.log?("云ASR task-started，开始发送内存音频")
+                        self.ready = true; self.log?("Cloud ASR task-started; sending in-memory audio")
                         self.drain(id)
                     case "result-generated":
                         let payload = object["payload"] as? [String:Any]
@@ -79,7 +79,7 @@ final class CloudVoicePipeline {
                                 if sentence["heartbeat"] as? Bool == true { continue }
                                 guard let number = sentence["sentence_id"] as? NSNumber,
                                       number.doubleValue == Double(number.intValue) else { throw CloudError.invalid }
-                                self.log?("持续ASR事件 sentence=\(number.intValue) characters=\(text.count) begin=\(sentence["sentence_begin"] as? Bool ?? false) end=\(final)；正文不入日志")
+                                self.log?("Continuous ASR event sentence=\(number.intValue) characters=\(text.count) begin=\(sentence["sentence_begin"] as? Bool ?? false) end=\(final); content is never logged")
                                 let turnEvents = try self.turns.accept(sentenceID:number.intValue,text:text,
                                     begin:sentence["sentence_begin"] as? Bool ?? false,end:final,
                                     heartbeat:false,now:ProcessInfo.processInfo.systemUptime)
@@ -88,7 +88,7 @@ final class CloudVoicePipeline {
                                     switch event {
                                     case .began(let turn):
                                         self.modelID = nil; self.modelTask?.cancel(); self.modelTask = nil
-                                        self.log?("持续ASR有效文字新句，取消旧模型发送代际；忽略空BOS，非本地VAD")
+                                        self.log?("Continuous ASR valid new sentence; canceling the previous model-send generation; empty BOS ignored, not local VAD")
                                         self.onUtteranceBegan?(turn,id)
                                     case .transcript(let turn, let transcript, let isFinal):
                                         self.onArchiveTranscript?(turn,transcript,isFinal)
@@ -97,13 +97,13 @@ final class CloudVoicePipeline {
                                         if transcript.isEmpty { self.onEmptyUtterance?(turn); continue }
                                         self.onEndpoint?(turn)
                                         guard self.id == id else { return }
-                                        self.log?("持续ASR分句完成 characters=\(transcript.count)；不发finish-task，并行启动模型")
+                                        self.log?("Continuous ASR segmentation done characters=\(transcript.count); no finish-task sent, model starts in parallel")
                                         self.startModel(id,transcript:transcript,turnID:turn)
                                     }
                                 }
                                 continue
                             }
-                            self.log?("云ASR文字事件 characters=\(text.count) sentenceEnd=\(final)")
+                            self.log?("Cloud ASR text event characters=\(text.count) sentenceEnd=\(final)")
                             let visible = Self.lensText(text)
                             self.onArchiveTranscript?(id,text,final)
                             let now = ProcessInfo.processInfo.systemUptime
@@ -119,7 +119,7 @@ final class CloudVoicePipeline {
                                 self.parts[index] = text
                                 if !self.finishing {
                                     self.finishing = true
-                                    self.log?("云ASR自然句末已到；非本地900ms截断")
+                                    self.log?("Cloud ASR natural sentence end reached; not a local 900ms cutoff")
                                     self.onEndpoint?(id)
                                     guard self.id == id else { return }
                                     self.drain(id)
@@ -132,21 +132,21 @@ final class CloudVoicePipeline {
                         let transcript = self.parts.keys.sorted().compactMap { self.parts[$0] }.joined()
                         guard self.finishing, !transcript.isEmpty, transcript.utf8.count <= 8192 else { throw CloudError.invalid }
                         ws.cancel(with:.normalClosure,reason:nil)
-                        self.log?("云ASR task-finished characters=\(transcript.count)；转交DeepSeek，仅文字")
+                        self.log?("Cloud ASR task-finished characters=\(transcript.count); handing off to DeepSeek, text only")
                         self.startModel(id,transcript:transcript)
                         return
                     case "task-failed": throw CloudError.remote
                     default: break
                     }
                 }
-            } catch { if self.id == id && !Task.isCancelled { self.fail(id,"ASR连接或协议失败") } }
+            } catch { if self.id == id && !Task.isCancelled { self.fail(id,"ASR connection or protocol failure") } }
         }
     }
     func appendPCM(_ data: Data) {
         precondition(Thread.isMainThread)
         guard let id, !finishing, !data.isEmpty else { return }
         guard data.count <= 3840, data.count % 2 == 0, queueBytes + data.count <= 96000,
-              totalBytes + data.count <= (continuousASR ? 3_900_000 : 704000) else { fail(id,"音频队列/总量超限"); return }
+              totalBytes + data.count <= (continuousASR ? 3_900_000 : 704000) else { fail(id,"Audio queue/total size limit exceeded"); return }
         queue.append(data); queueBytes += data.count; totalBytes += data.count
         drain(id)
     }
@@ -164,19 +164,20 @@ final class CloudVoicePipeline {
                         if self.finishing {
                             let taskID = current.uuidString.replacingOccurrences(of:"-",with:"").lowercased()
                             try await ws.send(.dataJSON(["header":["action":"finish-task","task_id":taskID,"streaming":"duplex"],"payload":["input":[:]]]))
-                            if self.id == current { self.ready = false; self.log?("云ASR finish-task已发，等待最终完成") }
+                            if self.id == current { self.ready = false; self.log?("Cloud ASR finish-task sent; waiting for final completion") }
                         }
                         return
                     }
                 }
-            } catch { if self.id == current && !self.asrDone && !Task.isCancelled { self.fail(current,"ASR音频发送失败") } }
+            } catch { if self.id == current && !self.asrDone && !Task.isCancelled { self.fail(current,"Failed to send ASR audio") } }
         }
     }
     private func startModel(_ current: UUID, transcript: String, turnID: UUID? = nil) {
-        guard id == current, let session, let key = CloudVoiceKeys.get(CloudVoiceKeys.llmService) else { fail(current,"缺少模型凭证"); return }
+        guard id == current, let session, let key = CloudVoiceKeys.get(CloudVoiceKeys.llmService) else { fail(current,"Missing model credentials"); return }
         let responseID = turnID ?? current
         modelTask?.cancel(); modelID = responseID
-        var request = URLRequest(url:URL(string:"https://api.deepseek.com/chat/completions")!)
+        let endpoint = CloudLLMEndpointSettings.current
+        var request = URLRequest(url:URL(string:endpoint.chatCompletionsURL)!)
         request.httpMethod = "POST"; request.timeoutInterval = 20
         request.setValue("Bearer " + key,forHTTPHeaderField:"Authorization")
         request.setValue("application/json",forHTTPHeaderField:"Content-Type")
@@ -184,10 +185,11 @@ final class CloudVoicePipeline {
         let allowed = Set(tools.compactMap { ($0["function"] as? [String: Any])?["name"] as? String })
         let toolPolicy = tools.isEmpty ? "没有工具执行能力，不能声称已创建提醒、待办或执行操作。" : "仅在用户明确要求时调用提供的Codex工具，每轮最多一个。普通聊天直接回答。不得编造执行成功，不得替用户批准权限。用户要求停止朗读或换聊天话题不等于停止Codex任务。任务可后台运行；问进度用codex_status，审批请用户在Turbo IO确认。待办天气等其他工具尚未接入，不能声称执行。"
         let messages = [["role":"system","content":"你是眼镜上的中文语音助手。用纯文本回答，不用Markdown。默认简洁；用户明确要求篇幅时遵循，例如约300字。" + toolPolicy]] + history.suffix(6) + [["role":"user","content":transcript]]
-        var body: [String: Any] = ["model":"deepseek-v4-flash","thinking":["type":"disabled"],"stream":true,"max_tokens":1024,"messages":messages]
+        var body: [String: Any] = ["model":endpoint.model,"stream":true,"max_tokens":1024,"messages":messages]
+        if endpoint.isDeepSeek { body["thinking"] = ["type":"disabled"] }
         if !tools.isEmpty { body["tools"] = tools; body["tool_choice"] = "auto"; body["parallel_tool_calls"] = false }
         do { request.httpBody = try JSONSerialization.data(withJSONObject:body) }
-        catch { fail(current,"模型请求编码失败"); return }
+        catch { fail(current,"Failed to encode the model request"); return }
         modelTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
@@ -231,7 +233,7 @@ final class CloudVoicePipeline {
                 if toolCall.present {
                     let (name, arguments) = try toolCall.validated(allowed: allowed, finishReason: finishReason)
                     guard let execute = self.executeTool, self.id == current, self.modelID == responseID, !Task.isCancelled else { throw CloudError.invalid }
-                    self.log?("Codex工具提交；不记录参数/正文，不含自动审批")
+                    self.log?("Codex tool submitted; arguments/content are not logged, and there is no automatic approval")
                     let result = await execute(name, arguments, responseID)
                     guard self.id == current, self.modelID == responseID, !Task.isCancelled else { return }
                     let addition = (text.isEmpty ? "" : "\n") + result
@@ -241,7 +243,7 @@ final class CloudVoicePipeline {
                     }
                 }
                 guard !text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else { throw CloudError.invalid }
-                self.log?("DeepSeek流完成 characters=\(text.count) reasoningCharacters=\(reasoning) finishReason=\(finishReason)；正文不入日志")
+                self.log?("DeepSeek stream complete characters=\(text.count) reasoningCharacters=\(reasoning) finishReason=\(finishReason); content is never logged")
                 self.history.append(["role":"user","content":String(transcript.prefix(1000))])
                 self.history.append(["role":"assistant","content":String(text.prefix(1000))])
                 self.history = Array(self.history.suffix(6))
@@ -249,7 +251,7 @@ final class CloudVoicePipeline {
                     guard self.id == current, self.modelID == responseID else { return }
                     self.onText?(responseID,chunk.text,chunk.final)
                 }
-            } catch { if self.id == current && self.modelID == responseID && !Task.isCancelled { self.fail(current,"模型请求或流式响应失败") } }
+            } catch { if self.id == current && self.modelID == responseID && !Task.isCancelled { self.fail(current,"Model request or streaming response failed") } }
         }
     }
     static func lensText(_ source: String) -> String {
@@ -277,7 +279,7 @@ final class CloudVoicePipeline {
     }
     private func fail(_ current: UUID, _ reason: String) {
         guard id == current else { return }
-        log?("云链路失败：\(reason)；未记录服务端错误正文")
+        log?("Cloud pipeline failed: \(reason); server error body was not logged")
         cancel(); onError?(current)
     }
     private enum CloudError: Error { case invalid, remote, limit }

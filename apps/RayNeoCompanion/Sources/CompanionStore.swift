@@ -171,6 +171,29 @@ final class CompanionStore: ObservableObject {
     lazy var features = CompanionDeviceFeatures(voice: voice, store: self,
         root: customRecordingRoot?.deletingLastPathComponent().appendingPathComponent("GlassesRecordingInboxV1")
         ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("GlassesRecordingInboxV1"))
+    /// Homelab uplink (v0.1): pushes coach text to the lens, reports status.
+    lazy var uplink: HermesUplink = {
+        let uplink = HermesUplink(defaults: defaults)
+        uplink.deviceID = { [weak self] in self?.voice.deviceID ?? "unpaired" }
+        uplink.deviceStatus = { [weak self] in (self?.voice.ready ?? false, self?.features.battery) }
+        uplink.onPushTeleprompter = { [weak self] push in
+            guard let self else { return }
+            if push.append, !self.prompterText.isEmpty {
+                self.savePrompter(self.prompterText + "\n" + push.text)
+            } else {
+                self.savePrompter(push.text)
+            }
+            self.features.prepareTeleprompter(push.text, speed: push.speed)
+        }
+        uplink.onTeleprompterControl = { [weak self] action in
+            self?.features.teleprompterControl(action.controlType)
+        }
+        // Keep live mode aligned with the real teleprompter session.
+        self.features.$teleprompterID.sink { [weak uplink] id in
+            if id != nil { uplink?.enterLive() } else { uplink?.exitLive() }
+        }.store(in: &uplink.retainedSubscriptions)
+        return uplink
+    }()
     private let defaults: UserDefaults
     private let customRecordingRoot: URL?
     private let prefix = "companion.v1."

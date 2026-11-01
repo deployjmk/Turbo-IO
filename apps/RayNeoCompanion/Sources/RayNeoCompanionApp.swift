@@ -29,6 +29,7 @@ struct RayNeoCompanionApp: App {
 
 struct RootView: View {
     @EnvironmentObject private var store: CompanionStore
+    @Environment(\.scenePhase) private var scenePhase
     @State private var hideTabBar = false
     @State private var didApplyLaunchArguments = false
     @State private var incomingBook: URL?
@@ -63,6 +64,10 @@ struct RootView: View {
                 await store.codexPush.tick()
                 do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch { break }
             }
+        }
+        .onChange(of: scenePhase) { phase in
+            // Battery-friendly uplink: reconnect only when a live session needs it.
+            if phase == .active { store.uplink.foreground() }
         }
         .onOpenURL { url in
             guard url.isFileURL, ["txt", "epub"].contains(url.pathExtension.lowercased()) else { return }

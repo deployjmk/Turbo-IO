@@ -6,6 +6,9 @@ struct ToolsView: View {
     @State private var showLab = false
     var body: some View {
         Screen(title: "工具箱", eyebrow: "本地工具与实验") {
+            NavigationLink { HermesUplinkView() } label: {
+                Card { FeatureRow(icon: "antenna.radiowaves.left.and.right", title: "Homelab Uplink", subtitle: "Hermes push-to-lens · live coach", status: "v0.1") }
+            }.buttonStyle(.plain).accessibilityIdentifier("uplink-tool")
             NavigationLink { DisplayObserverView() } label: {
                 Card { FeatureRow(icon: "eyeglasses", title: "显示观察", subtitle: "USB · 页面回报与发送文字 · 非截图", status: "只读") }
             }.buttonStyle(.plain).accessibilityIdentifier("display-observer-entry")

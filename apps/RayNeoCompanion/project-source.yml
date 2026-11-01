@@ -30,6 +30,7 @@ targets:
       - Sources
       - ../../core-probe/Sources/VoiceToolCallAccumulator.swift
       - ../../core-probe/Sources/CloudASRHostSettings.swift
+      - ../../core-probe/Sources/CloudLLMEndpointSettings.swift
     dependencies:
       - package: ZIPFoundation
       - package: RayNeoProtocol

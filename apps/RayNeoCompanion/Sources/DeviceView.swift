@@ -9,35 +9,35 @@ struct DeviceView: View {
     @State private var showConnection = false
 
     var body: some View {
-        Screen(title: "我的眼镜", eyebrow: "Turbo IO · 你的本地智能眼镜助手", headerIcon: "gearshape", headerAction: { showSettings = true }) {
+        Screen(title: "My Glasses", eyebrow: "Turbo IO · Your local smart-glasses assistant", headerIcon: "gearshape", headerAction: { showSettings = true }) {
             VStack(alignment: .leading, spacing: 7) {
                 HStack {
                     Text("RayNeo iO").font(.system(size: 25, weight: .semibold))
                     Spacer()
-                    if store.demoMode { Badge(text: "演示界面", active: true) }
+                    if store.demoMode { Badge(text: "Demo UI", active: true) }
                 }
-                Text(runtime.ready ? "已认证连接" : "尚未连接").font(.system(size: 15, weight: .medium))
+                Text(runtime.ready ? "Authenticated connection" : "Not connected yet").font(.system(size: 15, weight: .medium))
                 GlassesIllustration().padding(.horizontal, 15).padding(.vertical, 28)
-                Text("眼镜轮廓示意 · 非设备实时状态").font(.system(size: 9)).foregroundStyle(Palette.mint.opacity(0.5))
+                Text("Glasses outline illustration · not live device status").font(.system(size: 9)).foregroundStyle(Palette.mint.opacity(0.5))
             }
             .padding(22).foregroundStyle(.white)
             .background(LinearGradient(colors: [Palette.ink, Color(red: 0.10, green: 0.24, blue: 0.16)], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 22))
 
             if runtime.supportsDevice {
-                PrimaryButton(title: "发现配对中的眼镜", icon: "antenna.radiowaves.left.and.right", enabled: !runtime.enabled) { runtime.discover() }
-                Button("连接唯一发现的眼镜") { runtime.connect() }.disabled(runtime.enabled)
-                Button("重连本 App 已绑定眼镜") { runtime.reconnectBonded() }
+                PrimaryButton(title: "Discover pairing glasses", icon: "antenna.radiowaves.left.and.right", enabled: !runtime.enabled) { runtime.discover() }
+                Button("Connect the only discovered glasses") { runtime.connect() }.disabled(runtime.enabled)
+                Button("Reconnect glasses already bonded to this app") { runtime.reconnectBonded() }
                     .accessibilityIdentifier("reconnect-bonded")
                 Text(runtime.latestEvent).font(.caption).foregroundStyle(Palette.muted)
             } else {
-                PrimaryButton(title: "模拟器不连接眼镜", icon: "link", enabled: false) {}
+                PrimaryButton(title: "Simulator does not connect to glasses", icon: "link", enabled: false) {}
             }
 
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                Button { store.selectedTab = 1 } label: { shortcut("mic", title: "语音助手", subtitle: "语音识别与对话") }.buttonStyle(.plain)
-                Button { store.selectedTab = 2 } label: { shortcut("folder", title: "录音归档", subtitle: "管理本地音频") }.buttonStyle(.plain)
-                NavigationLink { PrompterView() } label: { shortcut("text.alignleft", title: "提词器", subtitle: "编辑与手机预览") }.buttonStyle(.plain)
-                NavigationLink { TodoView() } label: { shortcut("checkmark.circle", title: "待办清单", subtitle: "记录与管理任务") }.buttonStyle(.plain)
+                Button { store.selectedTab = 1 } label: { shortcut("mic", title: "Voice Assistant", subtitle: "Speech recognition and conversation") }.buttonStyle(.plain)
+                Button { store.selectedTab = 2 } label: { shortcut("folder", title: "Recording Archive", subtitle: "Manage local audio") }.buttonStyle(.plain)
+                NavigationLink { PrompterView() } label: { shortcut("text.alignleft", title: "Teleprompter", subtitle: "Edit and preview on the phone") }.buttonStyle(.plain)
+                NavigationLink { TodoView() } label: { shortcut("checkmark.circle", title: "Todo List", subtitle: "Capture and manage tasks") }.buttonStyle(.plain)
             }
             NavigationLink { QWeatherDashboardView() } label: {
                 Label(qweather.status, systemImage: "cloud.sun")
@@ -45,7 +45,7 @@ struct DeviceView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }.accessibilityIdentifier("device-weather-status")
             Button { showConnection = true } label: {
-                Label("本地功能可用，眼镜控制待验证", systemImage: "info.circle")
+                Label("Local features available; glasses control still to be verified", systemImage: "info.circle")
                     .font(.system(size: 12)).foregroundStyle(Palette.green).padding(15)
                     .frame(maxWidth: .infinity, alignment: .leading).background(Palette.mint.opacity(0.18), in: RoundedRectangle(cornerRadius: 15))
             }.buttonStyle(.plain)
@@ -77,20 +77,20 @@ struct ConnectionBoundaryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     Image(systemName: "link.badge.plus").font(.system(size: 35, weight: .light)).foregroundStyle(Palette.green)
-                    Text("连接，有清晰的边界。").font(.title2.bold()).foregroundStyle(Palette.ink)
-                    Text("Turbo IO使用独立 Bundle 与沙盒。真机构建已接入原型通信核心与语音链路；模拟器构建不加载厂商库或发蓝牙指令。新 App 的配对、后台与镜片效果还需真机复验。")
+                    Text("Connection, with clear boundaries.").font(.title2.bold()).foregroundStyle(Palette.ink)
+                    Text("Turbo IO uses its own bundle and sandbox. The device build is wired to the prototype communication core and voice pipeline; the simulator build loads no vendor library and sends no Bluetooth commands. Pairing, background behavior, and lens effects for the new app still need re-verification on real hardware.")
                         .font(.subheadline).foregroundStyle(Palette.muted).lineSpacing(5)
                     Card {
-                        FeatureRow(icon: "iphone", title: "手机侧本地功能", subtitle: "草稿、导入、配置与状态演示", status: "可使用", active: true)
-                        FeatureRow(icon: "link", title: "连接、认证与解绑", subtitle: "真机复用原型核心；不自动解绑或重置")
-                        FeatureRow(icon: "eyeglasses", title: "镜片显示与反向事件", subtitle: "必须在实际眼镜上逐项验收")
-                        FeatureRow(icon: "signature", title: "非越狱签名设备", subtitle: "模拟器构建不代表非越狱通道已验证", status: "待实机")
+                        FeatureRow(icon: "iphone", title: "On-phone local features", subtitle: "Drafts, imports, configuration, and status demos", status: "Available", active: true)
+                        FeatureRow(icon: "link", title: "Connection, authentication, and unbinding", subtitle: "Reuses the prototype core on device; never unbinds or resets automatically")
+                        FeatureRow(icon: "eyeglasses", title: "Lens display and reverse events", subtitle: "Must be accepted item by item on the actual glasses")
+                        FeatureRow(icon: "signature", title: "Non-jailbroken signed device", subtitle: "The simulator build does not prove the non-jailbroken path", status: "On-device pending")
                     }
-                    Text("不会操作固件、解绑官方账号、自动打开麦克风或上传录音。")
+                    Text("It will not touch firmware, unbind the official account, turn the microphone on automatically, or upload recordings.")
                         .font(.footnote).foregroundStyle(Palette.green)
                 }.padding(24)
-            }.background(Palette.background).navigationTitle("连接进度").navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
+            }.background(Palette.background).navigationTitle("Connection Progress").navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
     }
 }
