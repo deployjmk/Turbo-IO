@@ -44,7 +44,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            archive | tee build/log.txt | xcbeautify || tail -80 build/log.txt
+            archive 2>&1 | tee build/log.txt || { echo '--- xcodebuild failed, tail of log ---'; tail -80 build/log.txt; exit 1; }
 
       - name: Package unsigned IPA
         working-directory: apps/RayNeoCompanion/build
